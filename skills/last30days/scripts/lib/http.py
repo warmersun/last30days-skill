@@ -1493,6 +1493,7 @@ def classify_failure(*, status_code: Optional[int] = None, message: str = "") ->
             "insufficient credits",
             "does not have any credits",
             "out of credits",
+            "spend cap",
         )
     ):
         return health.PAYMENT_REQUIRED

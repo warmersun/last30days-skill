@@ -414,8 +414,35 @@ class TestSearchX(unittest.TestCase):
         with mock.patch("subprocess.run", return_value=completed) as run_mock:
             xurl_x.search_x("claude code")
         call_args = run_mock.call_args[0][0]
+        self.assertEqual(call_args[:1], ["xurl"])
+        self.assertNotIn("--app", call_args)
         self.assertIn("--auth", call_args)
         self.assertEqual(call_args[call_args.index("--auth") + 1], "app")
+
+    def test_search_uses_oauth2_app_when_configured(self):
+        completed = mock.Mock(returncode=0, stdout=json.dumps({}))
+        with mock.patch.dict(
+            "os.environ",
+            {"LAST30DAYS_XURL_AUTH": "oauth2", "LAST30DAYS_XURL_APP": "xurl_on_msi"},
+            clear=False,
+        ), mock.patch("subprocess.run", return_value=completed) as run_mock:
+            xurl_x.search_x("claude code")
+        call_args = run_mock.call_args[0][0]
+        self.assertEqual(
+            call_args[:3],
+            ["xurl", "--app", "xurl_on_msi"],
+        )
+        self.assertEqual(call_args[call_args.index("--auth") + 1], "oauth2")
+
+    def test_oauth2_mode_accepts_signed_in_user(self):
+        xurl_x.clear_availability_cache()
+        completed = mock.Mock(
+            returncode=0,
+            stdout="oauth2: (none)\n▸ oauth2: Someone\nbearer: –\n",
+        )
+        with mock.patch.dict("os.environ", {"LAST30DAYS_XURL_AUTH": "oauth2"}, clear=False), \
+             mock.patch("subprocess.run", return_value=completed):
+            self.assertTrue(xurl_x.is_available())
 
     def test_max_results_clamped_to_100(self):
         # DEPTH_CONFIG["deep"] = 60, should stay at 60 (within 10-100 range)

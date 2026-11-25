@@ -27,9 +27,45 @@ from . import x_api
 from .x_api import DEPTH_CONFIG
 
 # xurl auth status marks a configured app-only bearer as "bearer: ✓".
-# Search uses --auth app, so availability must require this — oauth1 alone
-# is not enough.
+# The default search path uses --auth app, so availability must require
+# this — oauth1 alone is not enough. LAST30DAYS_XURL_AUTH=oauth2 opts into
+# the signed-in user instead, which is what a bearer-less xurl app has.
 _BEARER_CONFIGURED_RE = re.compile(r"bearer:\s*✓")
+_OAUTH2_VALUE_RE = re.compile(r"oauth2:\s*(.+)")
+_OAUTH2_EMPTY = frozenset({"", "(none)", "none", "–", "-", "null", "✗"})
+_AUTH_MODES = frozenset({"app", "oauth2", "oauth1"})
+_APP_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+
+
+def auth_mode() -> str:
+    """Auth type for xurl search. Default ``app`` (app-only bearer)."""
+    raw = (os.environ.get("LAST30DAYS_XURL_AUTH") or "app").strip().lower()
+    return raw if raw in _AUTH_MODES else "app"
+
+
+def app_name() -> Optional[str]:
+    """Registered xurl app from ``LAST30DAYS_XURL_APP``, or None."""
+    raw = (os.environ.get("LAST30DAYS_XURL_APP") or "").strip()
+    if raw and _APP_NAME_RE.fullmatch(raw):
+        return raw
+    return None
+
+
+def _xurl_prefix() -> List[str]:
+    """``xurl`` argv prefix. ``--app`` is added only when an app name is set."""
+    cmd = ["xurl"]
+    app = app_name()
+    if app:
+        cmd.extend(["--app", app])
+    return cmd
+
+
+def _status_has_oauth2(stdout: str) -> bool:
+    for match in _OAUTH2_VALUE_RE.finditer(stdout or ""):
+        value = match.group(1).strip()
+        if value and value not in _OAUTH2_EMPTY:
+            return True
+    return False
 
 
 def _log(msg: str) -> None:
@@ -55,9 +91,10 @@ def clear_availability_cache() -> None:
 def is_available() -> bool:
     """Check if xurl is installed and has app-only bearer auth.
 
-    Returns True only if xurl binary is found AND ``xurl auth status``
-    exits 0 with a configured app-only bearer (``bearer: ✓``). OAuth1
-    alone is insufficient — ``search_x`` pins ``--auth app``.
+    Returns True only if xurl is found AND ``xurl auth status`` exits 0
+    with the auth mode this install uses. The default is a configured
+    app-only bearer (``bearer: ✓``); OAuth1 alone is not enough.
+    ``LAST30DAYS_XURL_AUTH=oauth2`` accepts a signed-in OAuth2 user instead.
     Memoized per process; ``clear_availability_cache()`` resets.
     """
     global _availability_cache
@@ -69,17 +106,22 @@ def is_available() -> bool:
 def _is_available_uncached() -> bool:
     try:
         result = subprocess.run(
-            ["xurl", "auth", "status"],
+            [*_xurl_prefix(), "auth", "status"],
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=10,
         )
-        return (
-            result.returncode == 0
-            and _BEARER_CONFIGURED_RE.search(result.stdout or "") is not None
-        )
+        if result.returncode != 0:
+            return False
+        stdout = result.stdout or ""
+        mode = auth_mode()
+        if mode == "oauth2":
+            return _status_has_oauth2(stdout)
+        if mode == "oauth1":
+            return bool(re.search(r"oauth1:\s*[✓✔]", stdout))
+        return _BEARER_CONFIGURED_RE.search(stdout) is not None
     except (OSError, subprocess.TimeoutExpired):
         # OSError covers FileNotFoundError (no xurl on PATH) and
         # PermissionError (a non-executable match on PATH, e.g. WSL's
@@ -311,6 +353,8 @@ def stored_auth_status() -> Tuple[str, str]:
     if _content_has_bearer_token(content):
         return AUTH_OK, f"stored app-only bearer credentials found in {path}"
     if any(marker in content for marker in _OAUTH_USER_TOKEN_MARKERS):
+        if auth_mode() == "oauth2":
+            return AUTH_OK, f"stored OAuth2 user credentials found in {path}"
         return (
             AUTH_MISSING,
             f"token store {path} has OAuth user tokens only; search requires app-only bearer auth",
@@ -411,12 +455,22 @@ def search_x(
 
     charge = None
     try:
-        # --auth app (app-only bearer): xurl >=1.1 mis-signs OAuth1 requests
-        # whose query needs percent-encoding (spaces, parens, ...) -> 401.
-        # Bearer auth sends no signature, so multi-word queries work.
+        # Default --auth app (app-only bearer): xurl >=1.1 mis-signs OAuth1
+        # requests whose query needs percent-encoding (spaces, parens, ...)
+        # and those 401. Bearer auth sends no signature, so multi-word
+        # queries work. LAST30DAYS_XURL_AUTH=oauth2 uses the signed-in user
+        # on LAST30DAYS_XURL_APP when that app has no app-only bearer.
         charge = usage.begin("x")
         result = subprocess.run(
-            ["xurl", "search", search_query, "-n", str(max_results), "--auth", "app"],
+            [
+                *_xurl_prefix(),
+                "search",
+                search_query,
+                "-n",
+                str(max_results),
+                "--auth",
+                auth_mode(),
+            ],
             capture_output=True,
             text=True,
             encoding="utf-8",

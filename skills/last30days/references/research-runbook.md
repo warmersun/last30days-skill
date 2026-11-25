@@ -2,6 +2,8 @@
 
 Read for ordinary topic research after the root dispatch and first-run gate. Return to the root's conditional reference gates whenever intent or resolved entities select a mode. Load that mode before its engine command or synthesis.
 
+**Deployment policy.** The root deployment policy wins over this runbook: X is `xurl` only; never Bluesky, Xiaohongshu (RED), DripStack, or Perplexity (no `--deep-research`, no `--perplexity-search-type`); web search is only the harness web-search tool. Export `LAST30DAYS_NATIVE_SEARCH=1` and pass `--web-backend none` on every engine command.
+
 ## CRITICAL: Parse User Intent
 
 Before doing anything, parse the user's input for:

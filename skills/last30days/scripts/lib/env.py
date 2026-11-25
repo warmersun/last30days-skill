@@ -754,6 +754,10 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         ('LAST30DAYS_RERANK_MODEL', None),
         ('LAST30DAYS_X_MODEL', None),
         ('LAST30DAYS_X_BACKEND', None),
+        # xurl auth override. Unset keeps app-only bearer (--auth app).
+        # oauth2 uses the signed-in user; LAST30DAYS_XURL_APP names the app.
+        ('LAST30DAYS_XURL_AUTH', None),
+        ('LAST30DAYS_XURL_APP', None),
         ('LAST30DAYS_REDDIT_BACKEND', None),
         ('LAST30DAYS_YOUTUBE_BACKEND', None),
         # Jobs lane: skip a job listing its site's robots.txt disallows.
@@ -1113,6 +1117,8 @@ def get_config(policy: ConfigLoadPolicy | None = None) -> dict[str, Any]:
         'LAST30DAYS_YT_PLAYER_CLIENT',
         'LAST30DAYS_JOBS_RESPECT_ROBOTS',
         'SCRAPECREATORS_BASE_URL',
+        'LAST30DAYS_XURL_AUTH',
+        'LAST30DAYS_XURL_APP',
     ):
         value = config.get(key)
         # Empty LAST30DAYS_YT_PLAYER_CLIENT is a valid disable; other knobs

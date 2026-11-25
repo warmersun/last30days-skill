@@ -78,6 +78,15 @@ Follow the host's system and developer instructions, applicable tool contracts, 
 
 This is the slash-command skill, not a generic search prompt. Run the installed Python engine for research; WebSearch supplements do not replace it. Never improvise an engine path, skip required resolution/planning, or produce a WebSearch-only report as though the skill ran.
 
+## Deployment policy
+
+These rules override later sections and references when they conflict. The matching settings live in `~/.config/last30days/.env`.
+
+- **X search uses `xurl` only.** `LAST30DAYS_X_BACKEND=xurl`, with `LAST30DAYS_XURL_AUTH=oauth2` and `LAST30DAYS_XURL_APP` selecting the signed-in xurl app. Do not select bird, xAI, xquik, grok, or `X_BEARER_TOKEN`. Do not read browser cookies for X.
+- **Bluesky, Xiaohongshu (RED), DripStack, and Perplexity are off.** Do not pass them in `--search`, `INCLUDE_SOURCES`, or a query plan. Do not pass `--deep-research` or `--perplexity-search-type`. `EXCLUDE_SOURCES` already drops them.
+- **Web search is the agent harness's own web-search tool**, whichever provider that app has configured. Export `LAST30DAYS_NATIVE_SEARCH=1` in the same shell as every engine command and pass `--web-backend none`. Do not use Brave, Exa, Serper, Parallel, Perplexity, or the engine's keyless web floor. Pre-research lookups and Step 2 supplements go through that harness tool.
+- **ScrapeCreators is already saved.** Do not ask for `SCRAPECREATORS_API_KEY`, print it, or start the GitHub signup.
+
 ## Bootstrap and file reads
 
 Bind `SKILL_DIR` to the absolute directory containing the **root SKILL.md actually loaded by the host**. Never bind it to `references/`, the current directory, or a different installation discovered through a path search. Retain `SKILL_DIR` across shell calls; when calls do not share variables, begin each command that uses it with a quoted assignment of that absolute path.
